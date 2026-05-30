@@ -2,9 +2,7 @@
   <title>Privacy · Control Flow Guard</title>
 </svelte:head>
 
-<main
-  class="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-6 py-20"
->
+<main class="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-8 px-6 py-20">
   <div class="flex flex-col gap-3">
     <a
       href="/"
@@ -14,9 +12,9 @@
     </a>
     <h1 class="text-3xl font-semibold tracking-tight">Privacy</h1>
     <p class="text-sm text-[hsl(var(--muted-foreground))]">
-      Control Flow Guard (CFG) verifies that people joining a Discord server
-      aren't using a VPN or proxy, and that they don't already have an account
-      there. Here's exactly what that involves.
+      Control Flow Guard checks that people joining a Discord server aren't using
+      a VPN or proxy, and that they don't already have an account there. This page
+      explains what that involves.
     </p>
   </div>
 
@@ -26,9 +24,9 @@
       <li>
         <span class="font-medium text-[hsl(var(--foreground))]"
           >Your Discord account.</span
-        > When you sign in, we read only your account ID, username, and display name
-        (Discord's "identify" scope). We can't see your email, your messages, or
-        the other servers you're in.
+        > When you sign in we read only your account ID, username, and display name
+        (Discord's "identify" scope). We can't see your email, your messages, or the
+        other servers you're in.
       </li>
       <li>
         <span class="font-medium text-[hsl(var(--foreground))]"
@@ -47,33 +45,35 @@
   <section class="flex flex-col gap-2">
     <h2 class="text-lg font-medium">How we use it</h2>
     <ul class="flex flex-col gap-2 text-sm text-[hsl(var(--muted-foreground))]">
-      <li>To check your connection isn't a VPN, proxy, or hosting/datacenter IP.</li>
       <li>
-        To enforce one verified account per person, so a single connection can't
-        be used to verify multiple accounts.
+        To check your connection isn't a VPN, proxy, or hosting/datacenter IP.
+      </li>
+      <li>
+        To keep it one verified account per person, so a single connection can't
+        be used to verify several accounts.
       </li>
     </ul>
   </section>
 
   <section class="flex flex-col gap-2">
-    <h2 class="text-lg font-medium">What we store — and what we don't</h2>
+    <h2 class="text-lg font-medium">What we store</h2>
     <ul class="flex flex-col gap-2 text-sm text-[hsl(var(--muted-foreground))]">
       <li>
         <span class="font-medium text-[hsl(var(--foreground))]"
-          >We never store your raw IP address.</span
-        > Instead we turn it into a one-way scrambled value (a salted hash). It can't
-        be turned back into your IP — it only lets us tell whether two verifications
+          >Never your raw IP address.</span
+        > We turn it into a one-way scrambled value (a salted hash). That value can't
+        be turned back into your IP. It only lets us tell whether two verifications
         came from the same connection.
       </li>
       <li>
-        We keep a verification record: your Discord ID, that scrambled value, the
-        risk score, and timestamps. If you're ever blocked, we record why and when
-        (so staff can review or undo it).
+        A verification record: your Discord ID, that scrambled value, the risk
+        score, and timestamps. If you're ever blocked, we save why and when, so
+        staff can review it or undo it.
       </li>
       <li>
-        Staff may see a partially-hidden version of your IP (e.g.
-        <span class="mono">86.9.92.x</span>) in their log channel — never the full
-        address.
+        Staff may see a partly hidden version of your IP (like
+        <span class="mono">86.9.92.x</span>) in their log channel. They never see
+        the full address.
       </li>
     </ul>
   </section>
@@ -81,15 +81,15 @@
   <section class="flex flex-col gap-2">
     <h2 class="text-lg font-medium">How long we keep it</h2>
     <p class="text-sm text-[hsl(var(--muted-foreground))]">
-      The scrambled IP value and verification record are kept for about 90 days,
-      then they fall out of the matching window and are no longer used.
+      The scrambled IP value and verification record are kept for about 90 days.
+      After that they fall outside the matching window and aren't used.
     </p>
   </section>
 
   <section class="flex flex-col gap-2">
     <h2 class="text-lg font-medium">Who else sees your IP</h2>
     <p class="text-sm text-[hsl(var(--muted-foreground))]">
-      To run the check, your IP is sent to two detection services —
+      To run the check, your IP is sent to two detection services:
       <a
         href="https://proxycheck.io/privacy/"
         rel="noreferrer noopener"
@@ -104,17 +104,17 @@
         target="_blank"
         class="underline underline-offset-4 hover:text-[hsl(var(--foreground))]"
         >ipinfo.io</a
-      >. They return whether the IP is a VPN/proxy and its network details. We
-      don't share anything else with anyone.
+      >. They tell us whether the IP is a VPN or proxy and return its network
+      details. Nothing else is shared with anyone.
     </p>
   </section>
 
   <section class="flex flex-col gap-2">
     <h2 class="text-lg font-medium">Blocked by mistake?</h2>
     <p class="text-sm text-[hsl(var(--muted-foreground))]">
-      Detection isn't perfect — home and mobile connections can occasionally be
-      misread. If you're blocked on a normal connection, contact the server
-      staff and they can clear it.
+      Detection isn't perfect, and home or mobile connections can occasionally be
+      misread. If you're blocked on a normal connection, message the server staff
+      and they can clear it.
     </p>
   </section>
 </main>
