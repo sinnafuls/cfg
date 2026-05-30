@@ -277,14 +277,6 @@ server {
 > `X-Forwarded-For` via adapter-node (`XFF_DEPTH=1`), and drop the Cloudflare
 > blocks above.
 
-### Hardening checklist
-
-- [ ] nginx restricted to Cloudflare IP ranges (above) so `CF-Connecting-IP` can't be forged.
-- [ ] `cfg-web` has **no published port** — reachable only via nginx on `proxiable` (it is, by default).
-- [ ] Redis is on the `internal` network only, no published port. For defence in depth set a password (`requirepass`) and put it in `REDIS_URL`, so a network-adjacent process still can't publish forged bus messages.
-- [ ] `.env` is never committed (it's gitignored); rotate any secret that has been shared anywhere.
-- [ ] `MONGODB_URI` uses auth + TLS in production.
-
 ---
 
 ## Multi-account policy
