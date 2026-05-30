@@ -143,7 +143,7 @@ and getting it wrong breaks both VPN detection and multi-account matching.
   `XFF_DEPTH=1` (one trusted hop).
 
 The raw IP is only ever used in-memory to run the check; what's stored is the
-salted hash, and what staff see in logs is host-redacted (`86.9.92.x`).
+salted hash, and what staff see in logs is host-redacted (`203.0.113.x`).
 
 ### 2. Install & develop
 
@@ -202,8 +202,41 @@ docker network create proxiable   # if it does not exist yet
 
 ### nginx
 
-CFG sits behind nginx on the shared `proxiable` network. nginx must forward the
-real client IP — VPN detection depends on `X-Forwarded-For`.
+CFG sits behind nginx on the shared `proxiable` network, and (in this deploy)
+behind Cloudflare. The app trusts Cloudflare's `CF-Connecting-IP` header to read
+the real visitor IP, so **nginx MUST only accept traffic from Cloudflare** and
+overwrite `$remote_addr` from it. Without this, anyone hitting nginx directly
+could forge their IP and bypass the whole VPN / multi-account check.
+
+```nginx
+# /etc/nginx/cloudflare-real-ip.conf — generated from https://www.cloudflare.com/ips/
+# Refresh periodically (the ranges change). IPv4:
+set_real_ip_from 173.245.48.0/20;
+set_real_ip_from 103.21.244.0/22;
+set_real_ip_from 103.22.200.0/22;
+set_real_ip_from 103.31.4.0/22;
+set_real_ip_from 141.101.64.0/18;
+set_real_ip_from 108.162.192.0/18;
+set_real_ip_from 190.93.240.0/20;
+set_real_ip_from 188.114.96.0/20;
+set_real_ip_from 197.234.240.0/22;
+set_real_ip_from 198.41.128.0/17;
+set_real_ip_from 162.158.0.0/15;
+set_real_ip_from 104.16.0.0/13;
+set_real_ip_from 104.24.0.0/14;
+set_real_ip_from 172.64.0.0/13;
+set_real_ip_from 131.0.72.0/22;
+# IPv6:
+set_real_ip_from 2400:cb00::/32;
+set_real_ip_from 2606:4700::/32;
+set_real_ip_from 2803:f800::/32;
+set_real_ip_from 2405:b500::/32;
+set_real_ip_from 2405:8100::/32;
+set_real_ip_from 2a06:98c0::/29;
+set_real_ip_from 2c0f:f248::/32;
+real_ip_header CF-Connecting-IP;
+real_ip_recursive on;
+```
 
 ```nginx
 server {
@@ -211,6 +244,14 @@ server {
     server_name cfg.ly.ax;
 
     # ssl_certificate / ssl_certificate_key ...
+
+    include /etc/nginx/cloudflare-real-ip.conf;
+
+    # Reject anything that did NOT arrive via Cloudflare. After the real_ip
+    # module runs, $realip_remote_addr is the *connecting* peer; if it isn't a
+    # Cloudflare edge, drop it so CF-Connecting-IP can't be spoofed directly.
+    # (Use a geo{} map of the same ranges -> $cf_ip, then `if (!$cf_ip) return 403;`,
+    #  or restrict the upstream firewall to Cloudflare. See Cloudflare's docs.)
 
     location / {
         proxy_pass http://cfg-web:3000;
@@ -220,6 +261,7 @@ server {
         proxy_set_header X-Real-IP         $remote_addr;
         proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header CF-Connecting-IP  $http_cf_connecting_ip;
 
         proxy_set_header Upgrade    $http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -230,6 +272,18 @@ server {
 > `proxy_pass http://cfg-web:3000` works when nginx runs in a container on the
 > `proxiable` network. If nginx runs on the host instead, publish the web port
 > and use `proxy_pass http://127.0.0.1:<published-port>`.
+>
+> **Not using Cloudflare?** Unset `CLIENT_IP_HEADER` so the app reads the IP from
+> `X-Forwarded-For` via adapter-node (`XFF_DEPTH=1`), and drop the Cloudflare
+> blocks above.
+
+### Hardening checklist
+
+- [ ] nginx restricted to Cloudflare IP ranges (above) so `CF-Connecting-IP` can't be forged.
+- [ ] `cfg-web` has **no published port** — reachable only via nginx on `proxiable` (it is, by default).
+- [ ] Redis is on the `internal` network only, no published port. For defence in depth set a password (`requirepass`) and put it in `REDIS_URL`, so a network-adjacent process still can't publish forged bus messages.
+- [ ] `.env` is never committed (it's gitignored); rotate any secret that has been shared anywhere.
+- [ ] `MONGODB_URI` uses auth + TLS in production.
 
 ---
 

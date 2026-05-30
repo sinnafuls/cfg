@@ -64,8 +64,8 @@ export function hashIp(ip: string): string {
 
 /**
  * Redact an IP for the staff log channel: keep enough to recognise a range /
- * ISP, drop the host portion. IPv4 `a.b.c.d` → `a.b.c.x` (keeps the /24);
- * IPv6 → first two hextets + `…`. Display-only — never stored (the durable
+ * ISP, drop the host portion. IPv4 `a.b.c.d` -> `a.b.c.x` (keeps the /24);
+ * IPv6 -> first two hextets + `…`. Display-only; never stored (the durable
  * record keeps only the salted hash).
  */
 export function redactIp(ip: string): string {

@@ -21,10 +21,14 @@
 import { createClient, type RedisClientType } from "redis";
 import {
   EmbedBuilder,
+  escapeMarkdown,
   time,
   type Client,
   type TextChannel,
 } from "discord.js";
+
+/** Discord snowflake IDs are 17-20 digit numeric strings. */
+const SNOWFLAKE = /^\d{17,20}$/;
 import logger from "../utils/logger.js";
 import {
   getRedis,
@@ -70,7 +74,7 @@ interface VerifyActionRequest {
     isp?: string;
     /** Autonomous-system number, e.g. "AS5089". */
     asn?: string;
-    /** Host-redacted IP, e.g. "86.9.92.x". Never the raw IP. */
+    /** Host-redacted IP, e.g. "203.0.113.x". Never the raw IP. */
     ipRedacted?: string;
     /** ProxyCheck connection type, e.g. "Residential" | "VPN" | "Hosting". */
     detectionType?: string;
@@ -140,7 +144,10 @@ async function handleLogEvent(
   }
 
   const userMention = `<@${req.discordId}>`;
-  const tag = log.username ? ` (${log.username})` : "";
+  // The username/display name are user-controlled. Escape markdown so they
+  // can't inject formatting/links into the staff embed; @everyone/role pings
+  // are separately neutralised by allowedMentions on send().
+  const tag = log.username ? ` (${escapeMarkdown(log.username)})` : "";
 
   const embed = new EmbedBuilder().setTimestamp(new Date()).setFooter({
     text: `User ID: ${req.discordId}`,
@@ -205,9 +212,12 @@ async function handleLogEvent(
       });
     embed.addFields(networkFields);
   } else if (log.outcome === "duplicate") {
+    const linkedName = log.linkedDisplayName
+      ? escapeMarkdown(log.linkedDisplayName)
+      : "";
     const linked = log.linkedDiscordId
-      ? `<@${log.linkedDiscordId}>${log.linkedDisplayName ? ` (${log.linkedDisplayName})` : ""}`
-      : (log.linkedDisplayName ?? "another account");
+      ? `<@${log.linkedDiscordId}>${linkedName ? ` (${linkedName})` : ""}`
+      : (linkedName || "another account");
     embed
       .setColor(RED)
       .setTitle("👥 Alt blocked")
@@ -225,7 +235,12 @@ async function handleLogEvent(
     embed.addFields(networkFields);
   }
 
-  await (channel as TextChannel).send({ embeds: [embed] });
+  // Only the subject user may be pinged. parse:[] blocks @everyone/@here and
+  // role pings that a malicious username/display name could otherwise trigger.
+  await (channel as TextChannel).send({
+    embeds: [embed],
+    allowedMentions: { parse: [], users: [req.discordId] },
+  });
 }
 
 async function handleRequest(
@@ -330,6 +345,11 @@ export async function subscribeVerifyActions(client: Client): Promise<void> {
       req = JSON.parse(raw) as VerifyActionRequest;
       if (!req.id || !req.type || !req.discordId || !req.guildId) {
         throw new Error("Malformed verify action request.");
+      }
+      // Reject non-snowflake IDs up front so an attacker who reached Redis
+      // can't drive guild/member/channel fetches with arbitrary values.
+      if (!SNOWFLAKE.test(req.discordId) || !SNOWFLAKE.test(req.guildId)) {
+        throw new Error("Non-snowflake id in verify action request.");
       }
     } catch (err) {
       logger.warn("[verifyActionBus] ignored malformed message:", err);

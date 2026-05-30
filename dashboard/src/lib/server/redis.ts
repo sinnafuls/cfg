@@ -131,7 +131,7 @@ export interface LogEventPayload {
   isp?: string;
   /** Autonomous-system number, e.g. "AS5089". */
   asn?: string;
-  /** Host-redacted IP for staff context, e.g. "86.9.92.x". Never the raw IP. */
+  /** Host-redacted IP for staff context, e.g. "203.0.113.x". Never the raw IP. */
   ipRedacted?: string;
   /** ProxyCheck connection type, e.g. "Residential" | "VPN" | "Hosting". */
   detectionType?: string;

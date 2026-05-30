@@ -72,7 +72,7 @@
       </li>
       <li>
         Staff may see a partly hidden version of your IP (like
-        <span class="mono">86.9.92.x</span>) in their log channel. They never see
+        <span class="mono">203.0.113.x</span>) in their log channel. They never see
         the full address.
       </li>
     </ul>

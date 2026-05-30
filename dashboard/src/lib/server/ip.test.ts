@@ -2,6 +2,10 @@ import { describe, it, expect, afterEach } from "vitest";
 import type { RequestEvent } from "@sveltejs/kit";
 import { getClientIp, redactIp, isPrivateIp } from "./ip.js";
 
+// All addresses below are RFC 5737 (IPv4) / RFC 3849 (IPv6) documentation
+// ranges reserved for examples and tests — never real, routable, or anyone's
+// address: 192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24, 2001:db8::/32.
+
 /** Minimal RequestEvent stub: a header map + a getClientAddress() result. */
 function mockEvent(opts: {
   headers?: Record<string, string>;
@@ -24,31 +28,33 @@ describe("getClientIp", () => {
 
   it("uses getClientAddress when no CLIENT_IP_HEADER is configured", () => {
     const ev = mockEvent({
-      headers: { "cf-connecting-ip": "86.9.92.242" },
-      address: "172.68.229.5",
+      headers: { "cf-connecting-ip": "203.0.113.242" },
+      address: "192.0.2.5",
     });
-    expect(getClientIp(ev)).toBe("172.68.229.5");
+    expect(getClientIp(ev)).toBe("192.0.2.5");
   });
 
   it("reads CF-Connecting-IP when CLIENT_IP_HEADER is set (Cloudflare deploy)", () => {
     process.env.CLIENT_IP_HEADER = "cf-connecting-ip";
     const ev = mockEvent({
-      headers: { "cf-connecting-ip": "86.9.92.242" },
-      address: "172.68.229.5", // Cloudflare edge — must NOT be used
+      headers: { "cf-connecting-ip": "203.0.113.242" },
+      address: "192.0.2.5", // stand-in for the Cloudflare edge; must NOT be used
     });
-    expect(getClientIp(ev)).toBe("86.9.92.242");
+    expect(getClientIp(ev)).toBe("203.0.113.242");
   });
 
   it("is case-insensitive on the header name", () => {
     process.env.CLIENT_IP_HEADER = "CF-Connecting-IP";
-    const ev = mockEvent({ headers: { "cf-connecting-ip": "1.2.3.4" } });
-    expect(getClientIp(ev)).toBe("1.2.3.4");
+    const ev = mockEvent({ headers: { "cf-connecting-ip": "198.51.100.4" } });
+    expect(getClientIp(ev)).toBe("198.51.100.4");
   });
 
   it("takes the first IP if the header carries a list", () => {
     process.env.CLIENT_IP_HEADER = "x-real-client";
-    const ev = mockEvent({ headers: { "x-real-client": "9.9.9.9, 10.0.0.1" } });
-    expect(getClientIp(ev)).toBe("9.9.9.9");
+    const ev = mockEvent({
+      headers: { "x-real-client": "198.51.100.9, 10.0.0.1" },
+    });
+    expect(getClientIp(ev)).toBe("198.51.100.9");
   });
 
   it("falls back to getClientAddress when the configured header is absent", () => {
@@ -60,10 +66,10 @@ describe("getClientIp", () => {
 
 describe("redactIp", () => {
   it("keeps the /24 and masks the host for IPv4", () => {
-    expect(redactIp("86.9.92.242")).toBe("86.9.92.x");
+    expect(redactIp("203.0.113.242")).toBe("203.0.113.x");
   });
   it("shortens IPv6 to the first two hextets", () => {
-    expect(redactIp("2a00:23c6:1234:5600:abcd::1")).toBe("2a00:23c6:…");
+    expect(redactIp("2001:db8:1234:5600:abcd::1")).toBe("2001:db8:…");
   });
   it("returns 'unknown' for empty or malformed input", () => {
     expect(redactIp("")).toBe("unknown");
@@ -80,7 +86,7 @@ describe("isPrivateIp", () => {
     expect(isPrivateIp("100.64.0.1")).toBe(true); // CGNAT
   });
   it("does not flag a public address", () => {
-    expect(isPrivateIp("86.9.92.242")).toBe(false);
-    expect(isPrivateIp("172.68.229.5")).toBe(false); // Cloudflare edge is public
+    expect(isPrivateIp("203.0.113.242")).toBe(false);
+    expect(isPrivateIp("192.0.2.5")).toBe(false); // a public (documentation) range
   });
 });
