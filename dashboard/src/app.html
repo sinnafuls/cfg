@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="icon" href="%sveltekit.assets%/favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Verification flow is per-user and link-gated; never index it. -->
+    <meta name="robots" content="noindex,nofollow" />
+    <title>CFG · Control Flow Guard</title>
+    <!-- theme-color drives Discord's embed accent stripe. Indigo is the
+         CFG "guard" signal colour. Pages can override via <svelte:head>. -->
+    <meta
+      name="description"
+      content="Control Flow Guard — verified humans only, no VPNs past the gate."
+    />
+    <meta name="theme-color" content="#6366f1" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="CFG" />
+    <meta property="og:title" content="CFG · Control Flow Guard" />
+    <meta
+      property="og:description"
+      content="Control Flow Guard — verified humans only, no VPNs past the gate."
+    />
+    %sveltekit.head%
+  </head>
+  <body
+    data-sveltekit-preload-data="hover"
+    class="bg-zinc-950 text-zinc-100 min-h-screen antialiased"
+  >
+    <div style="display: contents">%sveltekit.body%</div>
+  </body>
+</html>

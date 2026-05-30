@@ -1,0 +1,77 @@
+services:
+  cfg-redis:
+    image: redis:7-alpine
+    command: redis-server --save 60 1
+    volumes:
+      - redis-data:/data
+    networks:
+      - internal
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  cfg-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      # Point at the in-network Redis; overrides any localhost value in .env
+      - REDIS_URL=redis://cfg-redis:6379
+    depends_on:
+      - cfg-redis
+    networks:
+      - internal
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  cfg-web:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    env_file: .env
+    environment:
+      - NODE_ENV=production
+      # adapter-node runtime
+      - PORT=3000
+      - HOST=0.0.0.0
+      - ADDRESS_HEADER=X-Forwarded-For
+      - XFF_DEPTH=1
+      # In-network Redis + public base URL
+      - REDIS_URL=redis://cfg-redis:6379
+      - WEB_BASE_URL=https://cfg.ly.ax
+      # Fraud provider tuning (keys themselves come from env_file .env)
+      - PROXYCHECK_RISK_THRESHOLD=${PROXYCHECK_RISK_THRESHOLD:-75}
+      - IPINFO_BLOCK_DATACENTER=${IPINFO_BLOCK_DATACENTER:-true}
+      - FAIL_MODE=${FAIL_MODE:-open}
+    depends_on:
+      - cfg-redis
+    networks:
+      - internal
+      - proxiable
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  internal: {}
+  proxiable:
+    external: true
+
+volumes:
+  redis-data: {}

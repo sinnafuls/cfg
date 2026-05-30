@@ -1,0 +1,99 @@
+@import "@fontsource-variable/sora";
+@import "@fontsource-variable/jetbrains-mono";
+@import "tailwindcss";
+
+/* ────────────────────────────────────────────────────────────────
+ * Design tokens - sibling palette to perceptor (zinc base + indigo
+ * accent) so CFG feels like part of the same product family, then
+ * layers in shadcn-style semantic variables (--card, --primary,
+ * --accent, etc.) the bits-ui components consume via tailwind
+ * utilities or bg-[color:var(--…)].
+ * ────────────────────────────────────────────────────────────────
+ */
+@theme {
+  /* Base palette (kept named for direct usages). */
+  --color-bg: #09090b;
+  --color-panel: #18181b;
+  --color-fg: #fafafa;
+  --color-muted: #71717a;
+  --color-border: #27272a;
+
+  /* Indigo accent - the "guard" signal colour, used in restrained doses. */
+  --color-accent: #6366f1;
+  --color-accent-soft: rgba(99, 102, 241, 0.12);
+
+  --font-sans: "Sora Variable", "Sora", system-ui, -apple-system, sans-serif;
+  --font-mono:
+    "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+
+  /* Extra-wide breakpoint so content can grow on 1920px+ monitors. */
+  --breakpoint-3xl: 1920px;
+}
+
+/* shadcn-style semantic CSS variables - referenced by the bits-ui
+   primitives in $lib/components/ui/*. Keep the names in sync with
+   shadcn-svelte's defaults so future components drop in cleanly. */
+:root {
+  --background: 240 6% 5%;
+  --foreground: 0 0% 98%;
+  --card: 240 5% 7%;
+  --card-foreground: 0 0% 98%;
+  --popover: 240 6% 8%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 0 0% 98%;
+  --primary-foreground: 240 6% 5%;
+  --secondary: 240 4% 14%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 240 4% 14%;
+  --muted-foreground: 240 5% 65%;
+  --accent: 234 89% 67%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 240 4% 16%;
+  --input: 240 4% 16%;
+  --ring: 234 89% 67%;
+  --radius: 0.5rem;
+}
+
+html {
+  color-scheme: dark;
+  /* Solid base behind everything. `body` must stay transparent so the
+     fixed canvas at z-index:-10 (ParticleBackground) actually shows
+     through - otherwise body's bg paints over it. */
+  background: var(--color-bg);
+  /* Reserve scrollbar width even on pages that don't scroll, so mx-auto
+     centred content doesn't shift left when the scrollbar appears. */
+  scrollbar-gutter: stable;
+}
+
+html,
+body {
+  font-family: var(--font-sans);
+  color: var(--color-fg);
+  min-height: 100vh;
+}
+
+body {
+  background: transparent;
+}
+
+::selection {
+  background-color: var(--color-accent);
+  color: #fafafa;
+}
+
+/* Mono utility for IDs, hashes, snowflake IDs, timestamps - the things
+   that read better in a fixed-pitch font with tabular figures. */
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
