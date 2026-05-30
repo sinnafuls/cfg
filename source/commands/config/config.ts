@@ -23,7 +23,7 @@ export const data = new SlashCommandBuilder()
   .setDMPermission(false)
   .addSubcommand((s) =>
     s
-      .setName("set-role")
+      .setName("verified")
       .setDescription("Set the role granted when a member passes verification.")
       .addRoleOption((o) =>
         o
@@ -34,7 +34,7 @@ export const data = new SlashCommandBuilder()
   )
   .addSubcommand((s) =>
     s
-      .setName("set-channel")
+      .setName("logs")
       .setDescription("Set the channel that receives verification logs.")
       .addChannelOption((o) =>
         o
@@ -63,9 +63,9 @@ export const execute = async (
   await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 
   try {
-    if (sub === "set-role") {
+    if (sub === "verified") {
       await handleSetRole(interaction);
-    } else if (sub === "set-channel") {
+    } else if (sub === "logs") {
       await handleSetChannel(interaction);
     } else {
       await handleView(interaction);

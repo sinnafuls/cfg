@@ -32,6 +32,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@mongodb-js/zstd": "^2.0.1",
     "discord.js": "^14.25.1",
     "dotenv": "^17.2.2",
     "mongoose": "^8.14.2",
