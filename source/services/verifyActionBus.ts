@@ -66,6 +66,14 @@ interface VerifyActionRequest {
     country?: string;
     /** Block expiry epoch ms, if applicable. */
     until?: number;
+    /** ISP / network operator name. */
+    isp?: string;
+    /** Autonomous-system number, e.g. "AS5089". */
+    asn?: string;
+    /** Host-redacted IP, e.g. "86.9.92.x". Never the raw IP. */
+    ipRedacted?: string;
+    /** ProxyCheck connection type, e.g. "Residential" | "VPN" | "Hosting". */
+    detectionType?: string;
   };
 }
 
@@ -81,6 +89,21 @@ const REASON_LABEL: Record<string, string> = {
   fraud_score: "High risk score",
   both_apis_failed: "Checks unavailable (fail-closed)",
   multi_account: "Alt / multi-account",
+};
+
+/** Plain-English explanation of why each reason triggers a block. */
+const REASON_DETAIL: Record<string, string> = {
+  vpn: "Their IP was identified as a VPN endpoint.",
+  proxy: "Their IP was identified as a proxy.",
+  datacenter:
+    "Their IP belongs to a hosting / datacenter network (not a home ISP).",
+  tor: "Their IP is a Tor exit node.",
+  fraud_score:
+    "Their IP's risk score was at or above the configured threshold.",
+  both_apis_failed:
+    "Both detection providers were unreachable and FAIL_MODE is closed.",
+  multi_account:
+    "Another verified member already uses this connection (one account per person).",
 };
 
 let subClient: RedisClientType | null = null;
@@ -123,42 +146,64 @@ async function handleLogEvent(
     text: `User ID: ${req.discordId}`,
   });
 
+  // Network context fields shared by every outcome — the "more info the better"
+  // block: ISP, ASN, redacted IP, detection type, risk, country.
+  const networkFields: { name: string; value: string; inline: boolean }[] = [];
+  if (log.isp)
+    networkFields.push({ name: "ISP", value: log.isp, inline: true });
+  if (log.asn)
+    networkFields.push({ name: "ASN", value: `\`${log.asn}\``, inline: true });
+  if (log.detectionType)
+    networkFields.push({
+      name: "Detected as",
+      value: log.detectionType,
+      inline: true,
+    });
+  if (log.ipRedacted)
+    networkFields.push({
+      name: "IP (redacted)",
+      value: `\`${log.ipRedacted}\``,
+      inline: true,
+    });
+  if (typeof log.risk === "number")
+    networkFields.push({ name: "Risk", value: `\`${log.risk}\``, inline: true });
+  if (log.country)
+    networkFields.push({ name: "Country", value: log.country, inline: true });
+  if (log.connType)
+    networkFields.push({
+      name: "Connection",
+      value: log.connType,
+      inline: true,
+    });
+
   if (log.outcome === "verified") {
     embed
       .setColor(GREEN)
       .setTitle("✅ Verified")
-      .setDescription(`${userMention}${tag} passed verification.`);
-    if (log.connType) {
-      embed.addFields({
-        name: "Connection",
-        value: log.connType,
-        inline: true,
-      });
-    }
+      .setDescription(`${userMention}${tag} passed verification.`)
+      .addFields(networkFields);
   } else if (log.outcome === "blocked") {
+    const reasonKey = log.reason ?? "";
+    const why = REASON_DETAIL[reasonKey];
     embed
       .setColor(RED)
       .setTitle("🚫 Blocked")
-      .setDescription(`${userMention}${tag} was blocked.`)
+      .setDescription(
+        `${userMention}${tag} was blocked from verifying.` +
+          (why ? `\n${why}` : ""),
+      )
       .addFields({
         name: "Reason",
-        value: REASON_LABEL[log.reason ?? ""] ?? log.reason ?? "Unknown",
+        value: REASON_LABEL[reasonKey] ?? log.reason ?? "Unknown",
         inline: true,
       });
-    if (typeof log.risk === "number") {
-      embed.addFields({
-        name: "Risk",
-        value: `\`${log.risk}\``,
-        inline: true,
-      });
-    }
-    if (log.until) {
+    if (log.until)
       embed.addFields({
         name: "Until",
         value: time(Math.floor(log.until / 1000), "R"),
         inline: true,
       });
-    }
+    embed.addFields(networkFields);
   } else if (log.outcome === "duplicate") {
     const linked = log.linkedDiscordId
       ? `<@${log.linkedDiscordId}>${log.linkedDisplayName ? ` (${log.linkedDisplayName})` : ""}`
@@ -167,20 +212,17 @@ async function handleLogEvent(
       .setColor(RED)
       .setTitle("👥 Alt blocked")
       .setDescription(
-        `${userMention}${tag} was blocked as an alt of ${linked}.`,
-      );
+        `${userMention}${tag} was blocked as an alt of ${linked}.\n${REASON_DETAIL.multi_account}`,
+      )
+      .addFields(networkFields);
   } else {
     embed
       .setColor(AMBER)
       .setTitle("⚠️ Verification error")
       .setDescription(`${userMention}${tag} hit an error during verification.`);
-    if (log.reason) {
-      embed.addFields({ name: "Detail", value: log.reason, inline: true });
-    }
-  }
-
-  if (log.country) {
-    embed.addFields({ name: "Country", value: log.country, inline: true });
+    if (log.reason)
+      embed.addFields({ name: "Detail", value: log.reason, inline: false });
+    embed.addFields(networkFields);
   }
 
   await (channel as TextChannel).send({ embeds: [embed] });

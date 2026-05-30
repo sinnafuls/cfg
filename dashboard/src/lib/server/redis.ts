@@ -127,6 +127,14 @@ export interface LogEventPayload {
   linkedDisplayName?: string;
   country?: string;
   until?: number;
+  /** ISP / network operator name (ProxyCheck provider, else ipinfo AS name). */
+  isp?: string;
+  /** Autonomous-system number, e.g. "AS5089". */
+  asn?: string;
+  /** Host-redacted IP for staff context, e.g. "86.9.92.x". Never the raw IP. */
+  ipRedacted?: string;
+  /** ProxyCheck connection type, e.g. "Residential" | "VPN" | "Hosting". */
+  detectionType?: string;
 }
 
 export interface VerifyActionResponse<T = unknown> {

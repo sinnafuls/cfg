@@ -13,7 +13,7 @@ import {
   publishVerifyAction,
   publishLogEvent,
 } from "$lib/server/redis.js";
-import { getClientIp, hashIp, isPrivateIp } from "$lib/server/ip.js";
+import { getClientIp, hashIp, isPrivateIp, redactIp } from "$lib/server/ip.js";
 import {
   runFraudChecks,
   decide,
@@ -37,7 +37,12 @@ interface DiscordUser {
   global_name: string | null;
 }
 
-const BLOCK_TTL_SECONDS = 24 * 60 * 60; // 24h for a VPN/proxy block
+// VPN/proxy blocks are a light cooldown — they're often transient (someone just
+// needs to turn off their VPN) and the IP can change. Default 1h, override with
+// BLOCK_TTL (seconds). Multi-account blocks are a separate, longer policy
+// (MULTI_ACCOUNT_BLOCK_TTL) since an alt should stay out longer.
+const DEFAULT_VPN_BLOCK_TTL = 60 * 60; // 1h
+const DEFAULT_MULTI_ACCOUNT_BLOCK_TTL = 24 * 60 * 60; // 24h
 
 export const GET: RequestHandler = async (event) => {
   const { url, cookies } = event;
@@ -124,16 +129,19 @@ export const GET: RequestHandler = async (event) => {
 
   await ensureMongoConnection();
 
+  // Network context shared across log events (ISP / ASN / redacted IP / type).
+  const isp = checks.proxycheck?.provider || checks.ipinfo?.asName || undefined;
+  const asn = checks.ipinfo?.asn || undefined;
+  const ipRedacted = redactIp(ip);
+  const detectionType = checks.proxycheck?.type || undefined;
+
   // ── FLAGGED (VPN/proxy/tor/datacenter/fraud_score/both_apis_failed) ──────
   if (decision.flagged) {
     const reason = decision.reason ?? "fraud_score";
     const now = Date.now();
-    const until = now + BLOCK_TTL_SECONDS * 1000;
-    await setBlock(
-      discordId,
-      { reason, until },
-      BLOCK_TTL_SECONDS,
-    ).catch(() => {});
+    const ttlSeconds = Number(env.BLOCK_TTL) || DEFAULT_VPN_BLOCK_TTL;
+    const until = now + ttlSeconds * 1000;
+    await setBlock(discordId, { reason, until }, ttlSeconds).catch(() => {});
     await VerificationBlock.create({
       discordId,
       guildId,
@@ -150,6 +158,10 @@ export const GET: RequestHandler = async (event) => {
       risk: checks.proxycheck?.risk,
       connType: deriveConnType(checks.proxycheck, checks.ipinfo) || undefined,
       country: checks.ipinfo?.countryCode || undefined,
+      isp,
+      asn,
+      ipRedacted,
+      detectionType,
       until,
     });
     redirect(303, `/result?status=blocked&until=${until}`);
@@ -171,7 +183,8 @@ export const GET: RequestHandler = async (event) => {
   // ── DUPLICATE (multi-account, effective mode "block") ────────────────────
   if (ma.conflict && "mode" in ma && ma.mode === "block") {
     const now = Date.now();
-    const ttl = Number(env.MULTI_ACCOUNT_BLOCK_TTL) || BLOCK_TTL_SECONDS;
+    const ttl =
+      Number(env.MULTI_ACCOUNT_BLOCK_TTL) || DEFAULT_MULTI_ACCOUNT_BLOCK_TTL;
     const until = now + ttl * 1000;
     await VerificationBlock.create({
       discordId,
@@ -199,6 +212,10 @@ export const GET: RequestHandler = async (event) => {
       linkedDiscordId: ma.linkedDiscordId,
       linkedDisplayName: ma.linkedDisplayName,
       country: checks.ipinfo?.countryCode || undefined,
+      isp,
+      asn,
+      ipRedacted,
+      detectionType,
     });
     const as = encodeURIComponent(ma.linkedDisplayName ?? "");
     redirect(303, `/result?status=duplicate&as=${as}`);
@@ -250,6 +267,10 @@ export const GET: RequestHandler = async (event) => {
     risk: checks.proxycheck?.risk,
     connType: deriveConnType(checks.proxycheck, checks.ipinfo) || undefined,
     country: checks.ipinfo?.countryCode || undefined,
+    isp,
+    asn,
+    ipRedacted,
+    detectionType,
     reason: flagged
       ? `multi-account soft-flag (shares IP with ${ma.linkedDisplayName ?? ma.linkedDiscordId})`
       : assign.ok

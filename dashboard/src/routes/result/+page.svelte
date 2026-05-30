@@ -1,14 +1,5 @@
 <script lang="ts">
-  import Card from "$lib/components/ui/Card.svelte";
   import Alert from "$lib/components/ui/Alert.svelte";
-  import Badge from "$lib/components/ui/Badge.svelte";
-  import {
-    ShieldCheck,
-    ShieldAlert,
-    Users,
-    TriangleAlert,
-    Clock,
-  } from "@lucide/svelte";
   import type { PageData } from "./$types.js";
 
   let { data }: { data: PageData } = $props();
@@ -30,87 +21,61 @@
 </svelte:head>
 
 <main
-  class="mx-auto flex w-full max-w-lg flex-1 flex-col items-center justify-center gap-6 px-6 py-20"
+  class="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center gap-5 px-6 py-20 text-center"
 >
+  <a
+    href="/"
+    class="text-sm font-medium tracking-wide text-[hsl(var(--muted-foreground))] transition hover:text-[hsl(var(--foreground))]"
+  >
+    Control Flow Guard
+  </a>
+
   {#if data.status === "success"}
-    <div
-      class="flex h-14 w-14 items-center justify-center rounded-[var(--radius)] bg-emerald-950/40 text-emerald-300"
-    >
-      <ShieldCheck size={28} />
-    </div>
-    <div class="flex flex-col items-center gap-2 text-center">
-      <h1 class="text-2xl font-semibold tracking-tight">You're in</h1>
-      <Badge variant="success">
-        <ShieldCheck size={12} /> Verified
-      </Badge>
-    </div>
+    <h1 class="text-2xl font-semibold tracking-tight">You're in</h1>
     {#if data.pending}
       <Alert variant="warning" class="w-full text-center">
-        You passed the check. Your role is still being added and should show up
-        in Discord in a moment. You can close this tab.
+        You passed the check. Your role is being added now and should appear in
+        Discord in a moment. You can close this tab.
       </Alert>
     {:else}
-      <Card
-        class="w-full p-6 text-center text-sm text-[hsl(var(--muted-foreground))]"
-      >
+      <p class="text-sm text-[hsl(var(--muted-foreground))]">
         Your role has been added. Close this tab and head back to Discord.
-      </Card>
+      </p>
     {/if}
   {:else if data.status === "blocked"}
-    <div
-      class="flex h-14 w-14 items-center justify-center rounded-[var(--radius)] bg-rose-950/40 text-rose-300"
-    >
-      <ShieldAlert size={28} />
-    </div>
     <h1 class="text-2xl font-semibold tracking-tight">Couldn't let you in</h1>
-    <Alert variant="destructive" class="w-full">
-      <p>
-        Your connection looks like a VPN, proxy, or server host. Turn it off and
-        try again from your normal connection.
-      </p>
-      {#if untilText}
-        <p class="mt-2 flex items-center gap-1.5 text-xs">
-          <Clock size={13} />
-          <span>Try again after <span class="mono">{untilText}</span>.</span>
-        </p>
-      {/if}
+    <Alert variant="destructive" class="w-full text-center">
+      Your connection looks like a VPN, proxy, or server host. Turn it off and
+      try again from your normal connection.{#if untilText}
+        You can try again after <span class="mono">{untilText}</span>.{/if}
     </Alert>
-    <p class="text-center text-xs text-[hsl(var(--muted-foreground))]">
+    <p class="text-xs text-[hsl(var(--muted-foreground))]">
       On a normal home or phone connection and still seeing this? Let the server
-      staff know.
+      staff know — they can let you in.
     </p>
   {:else if data.status === "duplicate"}
-    <div
-      class="flex h-14 w-14 items-center justify-center rounded-[var(--radius)] bg-rose-950/40 text-rose-300"
-    >
-      <Users size={28} />
-    </div>
     <h1 class="text-2xl font-semibold tracking-tight">
       You already have an account here
     </h1>
-    <Alert variant="destructive" class="w-full">
+    <Alert variant="destructive" class="w-full text-center">
       {#if data.linkedName}
         <!-- Svelte auto-escapes {data.linkedName}; the server also applied the
              reveal policy + the value is HTML-safe. -->
         This server already has a verified account from your connection,
         <span class="font-medium">{data.linkedName}</span>. Only one account per
-        person is allowed. If that account isn't yours, contact the staff.
+        person is allowed.
       {:else}
-        This server already has a verified account from your connection. Only
-        one account per person is allowed. If you think that's wrong, contact
-        the staff.
+        This server already has a verified account from your connection. Only one
+        account per person is allowed.
       {/if}
     </Alert>
+    <p class="text-xs text-[hsl(var(--muted-foreground))]">
+      If that account isn't yours, contact the server staff.
+    </p>
   {:else}
-    <!-- error / pending fallthrough -->
-    <div
-      class="flex h-14 w-14 items-center justify-center rounded-[var(--radius)] bg-amber-950/40 text-amber-300"
-    >
-      <TriangleAlert size={28} />
-    </div>
     <h1 class="text-2xl font-semibold tracking-tight">That didn't go through</h1>
     <Alert variant="warning" class="w-full text-center">
-      Something broke partway through. Go back to the server and press
+      Something broke partway through. Head back to the server and press
       <span class="font-medium">Verify</span> to start over.
     </Alert>
   {/if}

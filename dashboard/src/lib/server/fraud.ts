@@ -176,39 +176,52 @@ export function deriveConnType(
 /**
  * PURE VPN/proxy decision. No I/O, no env, no clock — fully unit-testable.
  *
- * Flag when ProxyCheck signals a proxy/VPN/Tor/hosting type, when its risk
- * score meets/exceeds the threshold, or when ipinfo's ASN looks like a
- * datacenter/hosting network. When BOTH providers failed, honour failMode:
- * "open" passes the user (logged as both_apis_failed for review) so an outage
- * doesn't lock out legit users; "closed" blocks.
+ * Precedence is deliberate and important:
+ *
+ *  1. ProxyCheck is AUTHORITATIVE when present. It has real data on whether an
+ *     IP is a proxy / VPN / Tor / hosting node, so a CLEAN ProxyCheck verdict
+ *     means the user is clean — full stop. We do NOT let the crude ipinfo
+ *     ASN-name heuristic override it. (ipinfo Lite has no proxy/hosting flag at
+ *     all; `isDatacenter` is only a guess from the AS company name, which
+ *     produced false positives for residential ISPs — e.g. a Virgin Media
+ *     cable line flagged as "datacenter" while ProxyCheck said Residential.)
+ *
+ *  2. Only when ProxyCheck is UNAVAILABLE do we fall back to the weak ipinfo
+ *     datacenter heuristic, as a best-effort backstop during a ProxyCheck
+ *     outage.
+ *
+ *  3. If NEITHER provider returned a verdict, honour failMode: "open" passes
+ *     the user (logged as both_apis_failed for review) so an outage doesn't
+ *     lock out legit users; "closed" blocks.
  */
 export function decide(
   proxycheck: ProxycheckVerdict | undefined,
   ipinfo: IpinfoVerdict | undefined,
   cfg: DecideConfig,
 ): Decision {
-  // Neither provider returned a usable verdict.
-  if (!proxycheck && !ipinfo) {
-    return cfg.failMode === "closed"
-      ? { flagged: true, reason: "both_apis_failed" }
-      : { flagged: false, reason: "both_apis_failed" };
-  }
-
-  // ProxyCheck signals (primary).
+  // 1. ProxyCheck present → it decides, and a clean result is final.
   if (proxycheck) {
     const mapped = PROXYCHECK_TYPE_REASON[proxycheck.type];
     if (mapped) return { flagged: true, reason: mapped };
     if (proxycheck.proxy) return { flagged: true, reason: "proxy" };
     if (proxycheck.risk >= cfg.riskThreshold)
       return { flagged: true, reason: "fraud_score" };
+    // ProxyCheck says clean — trust it; do not consult the ipinfo guess.
+    return { flagged: false };
   }
 
-  // ipinfo datacenter signal (secondary backstop).
-  if (ipinfo && cfg.blockDatacenter && ipinfo.isDatacenter) {
-    return { flagged: true, reason: "datacenter" };
+  // 2. ProxyCheck unavailable → weak ipinfo ASN backstop.
+  if (ipinfo) {
+    if (cfg.blockDatacenter && ipinfo.isDatacenter) {
+      return { flagged: true, reason: "datacenter" };
+    }
+    return { flagged: false };
   }
 
-  return { flagged: false };
+  // 3. Neither provider available → fail policy.
+  return cfg.failMode === "closed"
+    ? { flagged: true, reason: "both_apis_failed" }
+    : { flagged: false, reason: "both_apis_failed" };
 }
 
 // ── Provider fetchers (the only I/O in this module) ────────────────────────

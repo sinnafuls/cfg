@@ -95,23 +95,36 @@ describe("decide()", () => {
     );
   });
 
-  it("flags a datacenter ASN from ipinfo when proxycheck is clean", () => {
+  it("a CLEAN ProxyCheck verdict overrides a datacenter-ish ipinfo ASN (no false positive)", () => {
+    // Regression: a residential ISP (ProxyCheck: Residential, risk 0) must NOT
+    // be blocked just because the ipinfo AS-name heuristic guessed datacenter.
     expect(decide(pc(), info({ isDatacenter: true }), cfg())).toEqual({
-      flagged: true,
-      reason: "datacenter",
+      flagged: false,
     });
   });
 
-  it("does not flag datacenter when blockDatacenter is off", () => {
-    expect(
-      decide(pc(), info({ isDatacenter: true }), cfg({ blockDatacenter: false })),
-    ).toEqual({ flagged: false });
-  });
-
-  it("ipinfo datacenter still flags when proxycheck is undefined", () => {
+  it("ipinfo datacenter flags ONLY when proxycheck is unavailable", () => {
     expect(decide(undefined, info({ isDatacenter: true }), cfg()).reason).toBe(
       "datacenter",
     );
+  });
+
+  it("does not flag datacenter when blockDatacenter is off (proxycheck down)", () => {
+    expect(
+      decide(
+        undefined,
+        info({ isDatacenter: true }),
+        cfg({ blockDatacenter: false }),
+      ),
+    ).toEqual({ flagged: false });
+  });
+
+  it("ipinfo datacenter backstop is ignored while proxycheck is up", () => {
+    // proxycheck up + clean, ipinfo says datacenter, but blockDatacenter on:
+    // ProxyCheck authority wins → not flagged.
+    expect(
+      decide(pc(), info({ isDatacenter: true }), cfg({ blockDatacenter: true })),
+    ).toEqual({ flagged: false });
   });
 
   it("both providers failed + fail open -> pass, both_apis_failed", () => {
@@ -133,6 +146,16 @@ describe("decide()", () => {
       true,
     );
     expect(decide(pc(), undefined, cfg()).flagged).toBe(false);
+  });
+
+  it("Virgin Media residential line is not blocked (real-world regression)", () => {
+    // The exact shape from the false-positive incident: ProxyCheck says
+    // Residential / not-proxy / risk 0, ipinfo's AS-name heuristic happened to
+    // flag datacenter. Must pass.
+    const vm = pc({ proxy: false, type: "Residential", risk: 0, provider: "Virgin Media Limited" });
+    expect(decide(vm, info({ isDatacenter: true }), cfg())).toEqual({
+      flagged: false,
+    });
   });
 });
 

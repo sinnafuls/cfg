@@ -40,6 +40,23 @@ export function hashIp(ip: string): string {
 }
 
 /**
+ * Redact an IP for the staff log channel: keep enough to recognise a range /
+ * ISP, drop the host portion. IPv4 `a.b.c.d` → `a.b.c.x` (keeps the /24);
+ * IPv6 → first two hextets + `…`. Display-only — never stored (the durable
+ * record keeps only the salted hash).
+ */
+export function redactIp(ip: string): string {
+  if (!ip) return "unknown";
+  if (ip.includes(":")) {
+    const groups = ip.split(":").filter(Boolean);
+    return `${groups.slice(0, 2).join(":")}:…`;
+  }
+  const octets = ip.split(".");
+  if (octets.length === 4) return `${octets[0]}.${octets[1]}.${octets[2]}.x`;
+  return "unknown";
+}
+
+/**
  * True for loopback / RFC1918 private / link-local / CGNAT addresses. In
  * production these indicate the reverse-proxy chain wasn't configured (we got
  * the proxy's own address, not the real client), so the callback should treat

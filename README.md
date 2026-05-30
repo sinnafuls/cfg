@@ -64,8 +64,8 @@ cp .env.example .env
 | `DISCORD_BOT_TOKEN` | yes | Bot token from the Discord developer portal |
 | `DISCORD_CLIENT_ID` | yes | Application client ID (slash command registration) |
 | `GUILD_ID` | yes | Target guild ID |
-| `VERIFIED_ROLE_ID` | no | Role to grant on successful verification. Bootstrap default — overridable at runtime with `/config set-role` |
-| `LOG_CHANNEL_ID` | no | Channel for verification log embeds. Overridable with `/config set-channel`. Unset = logging off |
+| `VERIFIED_ROLE_ID` | no | Role to grant on successful verification. Bootstrap default — overridable at runtime with `/config verified` |
+| `LOG_CHANNEL_ID` | no | Channel for verification log embeds. Overridable with `/config logs`. Unset = logging off |
 | `MONGODB_URI` | yes | MongoDB connection string |
 | `REDIS_URL` | yes | Redis connection string (compose sets `redis://cfg-redis:6379`) |
 | `WEB_BASE_URL` | yes | Public base URL of the web service (e.g. `https://cfg.ly.ax`) |
@@ -78,8 +78,8 @@ All are gated to **Manage Server**.
 | Command | What it does |
 |---------|--------------|
 | `/setup-verify [channel]` | Post the Verify panel (button) in a channel |
-| `/config set-role <role>` | Set the role granted on a clean verification |
-| `/config set-channel <channel>` | Set the channel that receives verification log embeds |
+| `/config verified <role>` | Set the role granted on a clean verification |
+| `/config logs <channel>` | Set the channel that receives verification log embeds |
 | `/config view` | Show the current role, log channel, and detection settings |
 | `/admin unblock <user>` | Clear a member's block so they can verify again |
 | `/admin view <user>` | Show a member's verified status, verification record, and recent block history |
@@ -87,7 +87,7 @@ All are gated to **Manage Server**.
 
 #### Logging
 
-If a log channel is set (`/config set-channel` or `LOG_CHANNEL_ID`), the bot posts a
+If a log channel is set (`/config logs` or `LOG_CHANNEL_ID`), the bot posts a
 colour-coded embed for every verification outcome:
 
 - 🟢 **Verified** — who passed, connection type, country
