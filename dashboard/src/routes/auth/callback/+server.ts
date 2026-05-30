@@ -11,6 +11,7 @@ import {
   consumeToken,
   setBlock,
   publishVerifyAction,
+  publishLogEvent,
 } from "$lib/server/redis.js";
 import { getClientIp, hashIp, isPrivateIp } from "$lib/server/ip.js";
 import {
@@ -101,6 +102,11 @@ export const GET: RequestHandler = async (event) => {
     // In prod a private/loopback IP means the proxy chain isn't forwarding the
     // real client address - fail to an error state rather than verifying
     // everyone behind the proxy as one shared "IP".
+    await publishLogEvent(discordId, guildId, {
+      outcome: "error",
+      username,
+      reason: "could not read a public client IP (proxy misconfigured?)",
+    });
     redirect(303, "/result?status=error");
   }
   const ipHash = hashIp(ip);
@@ -137,6 +143,15 @@ export const GET: RequestHandler = async (event) => {
       createdAt: new Date(now),
       expiresAt: new Date(until),
     }).catch(() => {});
+    await publishLogEvent(discordId, guildId, {
+      outcome: "blocked",
+      username,
+      reason,
+      risk: checks.proxycheck?.risk,
+      connType: deriveConnType(checks.proxycheck, checks.ipinfo) || undefined,
+      country: checks.ipinfo?.countryCode || undefined,
+      until,
+    });
     redirect(303, `/result?status=blocked&until=${until}`);
   }
 
@@ -177,6 +192,14 @@ export const GET: RequestHandler = async (event) => {
       },
       ttl,
     ).catch(() => {});
+    await publishLogEvent(discordId, guildId, {
+      outcome: "duplicate",
+      username,
+      reason: "multi_account",
+      linkedDiscordId: ma.linkedDiscordId,
+      linkedDisplayName: ma.linkedDisplayName,
+      country: checks.ipinfo?.countryCode || undefined,
+    });
     const as = encodeURIComponent(ma.linkedDisplayName ?? "");
     redirect(303, `/result?status=duplicate&as=${as}`);
   }
@@ -217,6 +240,23 @@ export const GET: RequestHandler = async (event) => {
   const assign = await publishVerifyAction(discordId, guildId).catch(() => ({
     ok: false,
   }));
+
+  // Log the clean verification (note in the feed if the role is still syncing
+  // or if this passed under a soft multi-account flag).
+  const flagged = ma.conflict && "mode" in ma && ma.mode === "flag";
+  await publishLogEvent(discordId, guildId, {
+    outcome: "verified",
+    username,
+    risk: checks.proxycheck?.risk,
+    connType: deriveConnType(checks.proxycheck, checks.ipinfo) || undefined,
+    country: checks.ipinfo?.countryCode || undefined,
+    reason: flagged
+      ? `multi-account soft-flag (shares IP with ${ma.linkedDisplayName ?? ma.linkedDiscordId})`
+      : assign.ok
+        ? undefined
+        : "role assignment pending (bot/redis slow)",
+  });
+
   if (!assign.ok) {
     redirect(303, "/result?status=success&pending=1");
   }

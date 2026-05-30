@@ -109,7 +109,25 @@ export async function getBlock(
 
 // ── Bot ↔ web action bus (mirrors perceptor sendAdminAction) ───────────────
 
-export type VerifyActionType = "assign_verified_role" | "check_membership";
+export type VerifyActionType =
+  | "assign_verified_role"
+  | "check_membership"
+  | "log_event";
+
+/** Outcome categories reported to the guild log channel. */
+export type LogOutcome = "verified" | "blocked" | "duplicate" | "error";
+
+export interface LogEventPayload {
+  outcome: LogOutcome;
+  username?: string;
+  reason?: string;
+  risk?: number;
+  connType?: string;
+  linkedDiscordId?: string;
+  linkedDisplayName?: string;
+  country?: string;
+  until?: number;
+}
 
 export interface VerifyActionResponse<T = unknown> {
   id: string;
@@ -229,4 +247,27 @@ export function sendCheckMembership(
     { discordId, guildId },
     timeoutMs,
   );
+}
+
+/**
+ * Fire-and-forget: ask the bot to post a verification log embed to the guild's
+ * configured log channel. Publishes directly (no response poll) so logging
+ * never adds latency to — or can fail — a verification. Swallows all errors:
+ * a logging hiccup must not break the user's flow.
+ */
+export async function publishLogEvent(
+  discordId: string,
+  guildId: string,
+  log: LogEventPayload,
+): Promise<void> {
+  try {
+    const c = await getRedis();
+    const id = makeId();
+    await c.publish(
+      VERIFY_ACTION_CHANNEL,
+      JSON.stringify({ id, type: "log_event", discordId, guildId, log }),
+    );
+  } catch {
+    // logging is best-effort
+  }
 }

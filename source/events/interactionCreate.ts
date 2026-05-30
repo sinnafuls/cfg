@@ -7,9 +7,9 @@ import {
 } from "discord.js";
 import type { EventModule } from "../types/event.js";
 import logger from "../utils/logger.js";
-import { VERIFIED_ROLE_ID } from "../guildConfig.js";
 import { isBlocked } from "../services/blockStore.js";
 import { issue } from "../services/tokenStore.js";
+import { resolveVerifiedRoleId } from "../services/guildConfigStore.js";
 
 /** customId of the persistent "Verify" button posted by /setup-verify. */
 export const VERIFY_BUTTON_ID = "cfg_request_verify";
@@ -52,8 +52,10 @@ async function handleVerifyButton(
   }
 
   // 1. Already verified — Discord strips roles on leave, so holding the role
-  //    means this membership is already verified.
-  if (VERIFIED_ROLE_ID && interaction.member.roles.cache.has(VERIFIED_ROLE_ID)) {
+  //    means this membership is already verified. Role resolves from
+  //    GuildConfig (set via /config set-role) then the env default.
+  const verifiedRoleId = await resolveVerifiedRoleId(interaction.guildId);
+  if (verifiedRoleId && interaction.member.roles.cache.has(verifiedRoleId)) {
     await interaction.reply({
       content: "You're already verified.",
       flags: MessageFlags.Ephemeral,

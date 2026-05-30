@@ -23,6 +23,9 @@ services:
     environment:
       # Point at the in-network Redis; overrides any localhost value in .env
       - REDIS_URL=redis://cfg-redis:6379
+      # Bootstrap defaults; both are overridable at runtime via /config.
+      - VERIFIED_ROLE_ID=${VERIFIED_ROLE_ID:-}
+      - LOG_CHANNEL_ID=${LOG_CHANNEL_ID:-}
     depends_on:
       - cfg-redis
     networks:

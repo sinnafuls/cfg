@@ -64,11 +64,39 @@ cp .env.example .env
 | `DISCORD_BOT_TOKEN` | yes | Bot token from the Discord developer portal |
 | `DISCORD_CLIENT_ID` | yes | Application client ID (slash command registration) |
 | `GUILD_ID` | yes | Target guild ID |
-| `VERIFIED_ROLE_ID` | yes | Role to grant on successful verification |
+| `VERIFIED_ROLE_ID` | no | Role to grant on successful verification. Bootstrap default — overridable at runtime with `/config set-role` |
+| `LOG_CHANNEL_ID` | no | Channel for verification log embeds. Overridable with `/config set-channel`. Unset = logging off |
 | `MONGODB_URI` | yes | MongoDB connection string |
 | `REDIS_URL` | yes | Redis connection string (compose sets `redis://cfg-redis:6379`) |
 | `WEB_BASE_URL` | yes | Public base URL of the web service (e.g. `https://cfg.ly.ax`) |
-| `LOG_LEVEL` | no | pino log level (default `info`) |
+| `LOG_LEVEL` | no | Log level: `ERROR`/`WARN`/`INFO`/`DEBUG` (default `INFO`) |
+
+#### Slash commands
+
+All are gated to **Manage Server**.
+
+| Command | What it does |
+|---------|--------------|
+| `/setup-verify [channel]` | Post the Verify panel (button) in a channel |
+| `/config set-role <role>` | Set the role granted on a clean verification |
+| `/config set-channel <channel>` | Set the channel that receives verification log embeds |
+| `/config view` | Show the current role, log channel, and detection settings |
+| `/admin unblock <user>` | Clear a member's block so they can verify again |
+| `/admin view <user>` | Show a member's verified status, verification record, and recent block history |
+| `/admin stats` | Verification metrics: verified totals (24h / 7d / all-time), active blocks, and blocks by reason |
+
+#### Logging
+
+If a log channel is set (`/config set-channel` or `LOG_CHANNEL_ID`), the bot posts a
+colour-coded embed for every verification outcome:
+
+- 🟢 **Verified** — who passed, connection type, country
+- 🔴 **Blocked** — who, the reason (VPN / proxy / datacenter / Tor / risk), risk score, retry time
+- 👥 **Alt blocked** — the new account and the existing account it's linked to
+- 🟠 **Error** — verifications that failed partway (e.g. IP couldn't be read)
+
+The web service decides outcomes, then asks the bot to post via the Redis action bus
+(fire-and-forget — a logging hiccup never blocks a verification).
 
 #### Web (`dashboard/`)
 
@@ -82,18 +110,20 @@ cp .env.example .env
 | `PROXYCHECK_RISK_THRESHOLD` | no | ProxyCheck risk score 0-100 to flag on (default `75`) |
 | `IPINFO_BLOCK_DATACENTER` | no | `true`/`false` — flag hosting/datacenter ASNs (default `true`) |
 | `FAIL_MODE` | no | `open` (allow) or `closed` (block) when BOTH providers fail (default `open`) |
-| `MULTI_ACCOUNT_MODE` | no | `block` / `flag` / `off` (default `flag`) |
-| `MULTI_ACCOUNT_WINDOW_HOURS` | no | Lookback window in hours (default `24`) |
-| `MULTI_ACCOUNT_MAX` | no | Max accounts per IP within the window (default `2`) |
+| `MULTI_ACCOUNT_MODE` | no | `block` / `flag` / `off` (default `block`) |
+| `MULTI_ACCOUNT_MAX_PER_IP` | no | Distinct live members allowed per IP before blocking (default `1`) |
+| `MULTI_ACCOUNT_IP_WINDOW_DAYS` | no | Ignore IP matches older than this (default `90`) |
+| `MULTI_ACCOUNT_BLOCK_TTL` | no | Redis block TTL (seconds) for an alt hit (default `86400`) |
+| `MULTI_ACCOUNT_LENIENT_CONN_TYPES` | no | Connection types downgraded block→flag (default `mobile,corporate,education`) |
+| `MULTI_ACCOUNT_REVEAL_USERNAME` | no | `true` / `masked` / `false` — how much of the linked account's name to show (default `true`) |
 | `IP_HASH_SALT` | yes | Salt for hashing IPs at rest |
 | `MONGODB_URI` | yes | MongoDB connection string |
 | `REDIS_URL` | yes | Redis connection string |
 | `WEB_BASE_URL` | yes | Public base URL |
 
-> The web service validates these at startup via
-> `dashboard/src/lib/server/config.ts` (`$env/static/private`). `IP_HASH_SALT`,
-> `DISCORD_CLIENT_SECRET`, and `DASHBOARD_SESSION_SECRET` are required and have no
-> defaults.
+> Web env is read lazily via `$env/dynamic/private` (so `svelte-kit build` runs
+> without runtime env). `IP_HASH_SALT`, `DISCORD_CLIENT_SECRET`, and
+> `DASHBOARD_SESSION_SECRET` are required and have no defaults.
 
 The Docker images additionally set the adapter-node runtime variables
 `PORT=3000`, `HOST=0.0.0.0`, `ADDRESS_HEADER=X-Forwarded-For`, and `XFF_DEPTH=1`
@@ -189,12 +219,15 @@ server {
 
 ## Multi-account policy
 
-CFG can limit how many verified accounts originate from the same IP within a
-rolling window (`MULTI_ACCOUNT_WINDOW_HOURS` / `MULTI_ACCOUNT_MAX`). The mode
-controls what happens when the limit is exceeded:
+CFG limits how many verified accounts can come from the same IP. It only runs on
+a clean (non-VPN) IP, matches against a salted IP hash, confirms the linked
+account is still in the server, and ignores matches older than
+`MULTI_ACCOUNT_IP_WINDOW_DAYS`. Shared-network connection types
+(`MULTI_ACCOUNT_LENIENT_CONN_TYPES` — mobile, corporate, education) are softened
+from block to flag, since those legitimately front many people.
 
-- **`block`** — deny verification; the member is not granted the role.
-- **`flag`** — grant the role but record/flag the member for review (default).
+- **`block`** (default) — deny verification; the alt is not granted the role.
+- **`flag`** — grant the role but post a staff alert for review.
 - **`off`** — disable the multi-account check entirely.
 
 ---
@@ -203,14 +236,15 @@ controls what happens when the limit is exceeded:
 
 - **IPs are hashed at rest.** Raw client IPs are never stored — they are hashed
   with SHA-256 using `IP_HASH_SALT` (see `dashboard/src/lib/server/ip.ts`). Set a
-  strong, secret salt and do not rotate it casually (it invalidates the
-  multi-account window).
+  strong, secret salt and do not rotate it casually (it invalidates existing
+  multi-account matches).
 - **Minimal PII.** CFG stores guild/role IDs, hashed IPs, and verification
   outcomes — not browsing data or raw addresses.
 - **Single-use tokens.** Verification links carry one-time tokens stored in Redis
   (`cfg:token:`) and are consumed on use.
-- **Fail-closed by default.** If a detection API is unavailable, `FAIL_MODE`
-  defaults to `block` so an outage cannot be used to bypass verification.
+- **Fail policy.** If both detection providers are unavailable, `FAIL_MODE`
+  decides the outcome — `open` (default) lets the user through and logs it for
+  review, `closed` blocks. Pick `closed` if a brief outage must never let a VPN slip past.
 - **Secrets** (`DISCORD_BOT_TOKEN`, `DISCORD_CLIENT_SECRET`,
   `DASHBOARD_SESSION_SECRET`, `IP_HASH_SALT`, API keys) belong only in `.env`,
   which is gitignored and excluded from the Docker build context via

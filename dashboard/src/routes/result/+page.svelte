@@ -13,7 +13,7 @@
 
   let { data }: { data: PageData } = $props();
 
-  // `until` is epoch ms; render an absolute local time + a short relative hint.
+  // `until` is epoch ms; render an absolute local time the user can read.
   const untilDate = $derived(data.until ? new Date(data.until) : null);
   const untilText = $derived(
     untilDate
@@ -39,20 +39,21 @@
       <ShieldCheck size={28} />
     </div>
     <div class="flex flex-col items-center gap-2 text-center">
-      <h1 class="text-2xl font-semibold tracking-tight">You're verified</h1>
+      <h1 class="text-2xl font-semibold tracking-tight">You're in</h1>
       <Badge variant="success">
-        <ShieldCheck size={12} /> Verified human
+        <ShieldCheck size={12} /> Verified
       </Badge>
     </div>
     {#if data.pending}
       <Alert variant="warning" class="w-full text-center">
-        You're verified — your role is syncing and should appear in Discord
-        shortly. You can close this tab.
+        You passed the check. Your role is still being added and should show up
+        in Discord in a moment. You can close this tab.
       </Alert>
     {:else}
-      <Card class="w-full p-6 text-center text-sm text-[hsl(var(--muted-foreground))]">
-        Your verified role has been assigned. You can close this tab and head
-        back to Discord.
+      <Card
+        class="w-full p-6 text-center text-sm text-[hsl(var(--muted-foreground))]"
+      >
+        Your role has been added. Close this tab and head back to Discord.
       </Card>
     {/if}
   {:else if data.status === "blocked"}
@@ -61,21 +62,22 @@
     >
       <ShieldAlert size={28} />
     </div>
-    <h1 class="text-2xl font-semibold tracking-tight">Verification blocked</h1>
+    <h1 class="text-2xl font-semibold tracking-tight">Couldn't let you in</h1>
     <Alert variant="destructive" class="w-full">
       <p>
-        Your connection looks like a VPN, proxy, or datacenter IP. Turn off any
-        VPN / proxy and try again.
+        Your connection looks like a VPN, proxy, or server host. Turn it off and
+        try again from your normal connection.
       </p>
       {#if untilText}
         <p class="mt-2 flex items-center gap-1.5 text-xs">
           <Clock size={13} />
-          <span>You can retry after <span class="mono">{untilText}</span>.</span>
+          <span>Try again after <span class="mono">{untilText}</span>.</span>
         </p>
       {/if}
     </Alert>
     <p class="text-center text-xs text-[hsl(var(--muted-foreground))]">
-      Think this is a mistake? Contact the server staff to appeal.
+      On a normal home or phone connection and still seeing this? Let the server
+      staff know.
     </p>
   {:else if data.status === "duplicate"}
     <div
@@ -83,17 +85,20 @@
     >
       <Users size={28} />
     </div>
-    <h1 class="text-2xl font-semibold tracking-tight">Already verified</h1>
+    <h1 class="text-2xl font-semibold tracking-tight">
+      You already have an account here
+    </h1>
     <Alert variant="destructive" class="w-full">
       {#if data.linkedName}
         <!-- Svelte auto-escapes {data.linkedName}; the server also applied the
              reveal policy + the value is HTML-safe. -->
-        You're already in this server as
-        <span class="font-medium">{data.linkedName}</span>. Each member may only
-        verify one account — contact staff if this is a mistake.
+        This server already has a verified account from your connection,
+        <span class="font-medium">{data.linkedName}</span>. Only one account per
+        person is allowed. If that account isn't yours, contact the staff.
       {:else}
-        An account on your network is already verified in this server. Each
-        member may only verify one account — contact staff if this is a mistake.
+        This server already has a verified account from your connection. Only
+        one account per person is allowed. If you think that's wrong, contact
+        the staff.
       {/if}
     </Alert>
   {:else}
@@ -103,10 +108,10 @@
     >
       <TriangleAlert size={28} />
     </div>
-    <h1 class="text-2xl font-semibold tracking-tight">Something went wrong</h1>
+    <h1 class="text-2xl font-semibold tracking-tight">That didn't go through</h1>
     <Alert variant="warning" class="w-full text-center">
-      We couldn't complete your verification. Head back to the server and click
-      <span class="font-medium">Verify</span> to try again.
+      Something broke partway through. Go back to the server and press
+      <span class="font-medium">Verify</span> to start over.
     </Alert>
   {/if}
 </main>

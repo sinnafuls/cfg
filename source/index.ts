@@ -43,9 +43,13 @@ function validateEnv(): void {
     logger.error("GUILD_ID must be set.");
     process.exit(1);
   }
+  // VERIFIED_ROLE_ID is now optional at startup: it can be set at runtime via
+  // /config set-role (stored in GuildConfig). Warn if neither is present so an
+  // operator isn't surprised when verification can't grant a role yet.
   if (!VERIFIED_ROLE_ID) {
-    logger.error("VERIFIED_ROLE_ID must be set.");
-    process.exit(1);
+    logger.warn(
+      "VERIFIED_ROLE_ID not set in env — set a verified role with /config set-role, or verification won't be able to grant a role.",
+    );
   }
 }
 

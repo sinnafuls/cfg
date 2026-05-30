@@ -50,12 +50,13 @@ export const execute = async (
   }
 
   const embed = new EmbedBuilder()
-    .setTitle("Control Flow Guard — Verification")
+    .setTitle("Verify to get access")
     .setColor(ACCENT_COLOR)
     .setDescription(
-      "This server is protected by **CFG (Control Flow Guard)** — verified humans only, no VPNs past the gate.\n\n" +
-        "Click **Verify** below to start. You'll authenticate with Discord and we'll run a quick automated VPN/proxy check. " +
-        "Clean connections get instant access; flagged ones are asked to disconnect their VPN and try again.",
+      "Press **Verify** below to get a private link. You'll sign in with Discord, " +
+        "and we'll check that you're not on a VPN or proxy.\n\n" +
+        "If you're on a normal connection this only takes a few seconds. " +
+        "If you use a VPN, turn it off first.",
     );
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
