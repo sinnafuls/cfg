@@ -51,7 +51,7 @@
     </Alert>
     <p class="text-xs text-[hsl(var(--muted-foreground))]">
       On a normal home or phone connection and still seeing this? Let the server
-      staff know — they can let you in.
+      staff know and they can let you in.
     </p>
   {:else if data.status === "duplicate"}
     <h1 class="text-2xl font-semibold tracking-tight">

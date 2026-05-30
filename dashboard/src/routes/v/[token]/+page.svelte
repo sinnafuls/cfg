@@ -29,7 +29,7 @@
   {#if !data.valid}
     <h1 class="text-2xl font-semibold tracking-tight">This link won't work</h1>
     <Alert variant="destructive" class="w-full text-center">
-      It's already been used or it expired — links last 15 minutes. Head back to
+      It's already been used or it expired. Links last 15 minutes. Head back to
       the server and press <span class="font-medium">Verify</span> for a fresh one.
     </Alert>
   {:else}
@@ -44,7 +44,7 @@
 
     <p class="text-xs leading-relaxed text-[hsl(var(--muted-foreground))]">
       We check whether your IP is a VPN, proxy, or hosting provider. We don't
-      store your IP — only a scrambled version of it, so one person can't verify
+      store your IP, only a scrambled version of it, so one person can't verify
       two accounts. <a
         href="/privacy"
         class="underline underline-offset-4 hover:text-[hsl(var(--foreground))]"
