@@ -1,7 +1,11 @@
 # syntax=docker/dockerfile:1
 
 # ---- Build stage ----
-FROM node:20-alpine AS build
+# node:20-slim (Debian/glibc), NOT alpine/musl: the native @mongodb-js/zstd
+# module (pulled in by compressors:"zstd") only ships glibc prebuilds. On musl
+# it fails to load and the zstd-compressed Mongo connection drops on every
+# ~10s topology heartbeat (connect succeeds, then flaps). Matches perceptor.
+FROM node:20-slim AS build
 WORKDIR /app
 
 # Install dependencies (including dev) for the build
@@ -14,7 +18,7 @@ COPY source ./source
 RUN npm run build
 
 # ---- Production stage ----
-FROM node:20-alpine AS production
+FROM node:20-slim AS production
 WORKDIR /app
 ENV NODE_ENV=production
 
