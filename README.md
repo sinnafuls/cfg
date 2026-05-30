@@ -126,8 +126,24 @@ The web service decides outcomes, then asks the bot to post via the Redis action
 > `DASHBOARD_SESSION_SECRET` are required and have no defaults.
 
 The Docker images additionally set the adapter-node runtime variables
-`PORT=3000`, `HOST=0.0.0.0`, `ADDRESS_HEADER=X-Forwarded-For`, and `XFF_DEPTH=1`
-so the Node server trusts the single nginx hop when reading the client IP.
+`PORT=3000` and `HOST=0.0.0.0`.
+
+**Reading the real client IP.** This is the most deployment-sensitive setting,
+and getting it wrong breaks both VPN detection and multi-account matching.
+
+- **Cloudflare in front (`Cloudflare → nginx → app`):** set
+  `CLIENT_IP_HEADER=cf-connecting-ip` (the compose default). The chain has two
+  proxy hops, so `X-Forwarded-For` resolves to Cloudflare's edge IP (`AS13335`),
+  not the visitor — the app reads Cloudflare's `CF-Connecting-IP` header instead,
+  which always carries the true visitor. Harden nginx to only accept traffic
+  from [Cloudflare's IP ranges](https://www.cloudflare.com/ips/) so the header
+  can't be forged by hitting nginx directly.
+- **Plain nginx, no Cloudflare:** leave `CLIENT_IP_HEADER` unset; the app uses
+  adapter-node's `getClientAddress()` with `ADDRESS_HEADER=X-Forwarded-For` and
+  `XFF_DEPTH=1` (one trusted hop).
+
+The raw IP is only ever used in-memory to run the check; what's stored is the
+salted hash, and what staff see in logs is host-redacted (`86.9.92.x`).
 
 ### 2. Install & develop
 

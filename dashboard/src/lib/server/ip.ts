@@ -3,13 +3,36 @@ import { env } from "$env/dynamic/private";
 import type { RequestEvent } from "@sveltejs/kit";
 
 /**
- * Extract the client IP for the current request. adapter-node's
- * `getClientAddress()` already honours ADDRESS_HEADER (X-Forwarded-For) +
- * XFF_DEPTH=1, so behind the nginx reverse proxy this returns the real client
- * address rather than the proxy's. We centralise the call here so the callback
- * has one place to source the IP (and so tests can stub it).
+ * Extract the real client IP for the current request. The right source depends
+ * on the proxy chain in front of the app:
+ *
+ *   - Plain nginx only (one hop): adapter-node's getClientAddress() honours
+ *     ADDRESS_HEADER=X-Forwarded-For + XFF_DEPTH=1 and returns the real client.
+ *
+ *   - Behind Cloudflare (Cloudflare -> nginx -> app, TWO hops): X-Forwarded-For's
+ *     trusted tail is Cloudflare's EDGE IP, not the visitor, so depth-1 XFF
+ *     yields a Cloudflare address (AS13335). Cloudflare puts the true visitor in
+ *     the `CF-Connecting-IP` header instead. Set CLIENT_IP_HEADER=cf-connecting-ip
+ *     and we read the visitor straight off that header.
+ *
+ * CLIENT_IP_HEADER, when set, is authoritative and read directly off the request.
+ * If it's configured but missing on a given request (e.g. traffic that didn't
+ * come through Cloudflare), we fall back to getClientAddress() rather than fail.
+ *
+ * Security note: only trust CLIENT_IP_HEADER when the app is reachable solely via
+ * the proxy that sets it. cfg-web is on the internal/proxiable Docker network
+ * (no public port), and Cloudflare is the only public entry, so the header can't
+ * be forged by a direct client. For defence in depth, restrict nginx to
+ * Cloudflare's IP ranges (or use nginx's real_ip module).
  */
 export function getClientIp(event: RequestEvent): string {
+  const headerName = env.CLIENT_IP_HEADER?.trim().toLowerCase();
+  if (headerName) {
+    const raw = event.request.headers.get(headerName);
+    // CF-Connecting-IP is a single IP; split-on-comma is just defensive.
+    const first = raw?.split(",")[0]?.trim();
+    if (first) return first;
+  }
   return event.getClientAddress();
 }
 
