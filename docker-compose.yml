@@ -1,6 +1,7 @@
 services:
   cfg-redis:
     image: redis:7-alpine
+    container_name: cfg-redis
     command: redis-server --save 60 1
     volumes:
       - redis-data:/data
@@ -17,6 +18,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: cfg-bot
     env_file: .env
     environment:
       # Point at the in-network Redis; overrides any localhost value in .env
@@ -36,6 +38,7 @@ services:
     build:
       context: ./dashboard
       dockerfile: Dockerfile
+    container_name: cfg-web
     env_file: .env
     environment:
       - NODE_ENV=production
